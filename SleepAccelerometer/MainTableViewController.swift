@@ -10,22 +10,44 @@ class MainTableViewController: UITableViewController,MFMailComposeViewController
   let HEADER_HEIGHT : CGFloat = 30.0
   private let control = UIRefreshControl()
   
-  override func viewDidLoad() {
-    super.viewDidLoad()
-    
-    getHealthPermissions()
-    
-    tableView.refreshControl = control
-    tableView.refreshControl?.addTarget(self, action: #selector(refreshSleepEvents(_:)), for: .valueChanged)
-    
-    Task {
-      savedEvents = try await SleepEvent.getAllEvents()
-      DispatchQueue.main.async { [weak self] in
-        self?.tableView.reloadData()
+    override func viewDidLoad() {
+      super.viewDidLoad()
+      if HKHealthStore.isHealthDataAvailable() {
+          let typesToRead: Set = [
+              HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!,
+              HKObjectType.quantityType(forIdentifier: .heartRate)!
+          ]
+          healthStore.requestAuthorization(toShare: nil, read: typesToRead) { (success, error) in
+              if success {
+                  self.loadSleepEvents()
+              }
+          }
       }
-    }
-    
-    self.navigationController?.navigationBar.titleTextAttributes = [NSAttributedString.Key.foregroundColor: UIColor.white]
+      NotificationCenter.default.addObserver(self, selector: #selector(watchDataUpdated), name: NSNotification.Name(rawValue: "watchDataUpdated"), object: nil)
+      NotificationCenter.default.addObserver(self, selector: #selector(handleRemDetected), name: NSNotification.Name(rawValue: "remDetected"), object: nil)
+  }
+    deinit {
+      NotificationCenter.default.removeObserver(self, name: NSNotification.Name(rawValue: "watchDataUpdated"), object: nil)
+      NotificationCenter.default.removeObserver(self, name: NSNotification.Name(rawValue: "remDetected"), object: nil)
+  }
+
+    @objc func handleRemDetected() {
+      // Flash the screen red
+      let flashView = UIView(frame: self.view.bounds)
+      flashView.backgroundColor = .red
+      flashView.alpha = 0.0
+      self.view.addSubview(flashView)
+  
+      // Animate flash: fade in and out
+      UIView.animate(withDuration: 0.5, animations: {
+          flashView.alpha = 1.0
+      }) { _ in
+          UIView.animate(withDuration: 0.5, delay: 0.2, options: [], animations: {
+              flashView.alpha = 0.0
+          }) { _ in
+              flashView.removeFromSuperview()
+          }
+      }
   }
   
   func getHealthPermissions(){
