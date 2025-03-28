@@ -10,16 +10,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   var watchManager = WatchManager()
   
   func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-    let navigationBarAppearance = UINavigationBar.appearance()
-    
-    navigationBarAppearance.tintColor = UIColor.white
-    navigationBarAppearance.barTintColor = UIColor.darkGray
-    
-    if let vc = window?.rootViewController as? MainTableViewController {
-      vc.watchManager = watchManager;
-    }
-    
-    return true
+
+      let window = UIWindow(frame: UIScreen.main.bounds)
+      let mainTableVC = MainTableViewController()
+      window.rootViewController = UINavigationController(rootViewController: mainTableVC)
+      window.makeKeyAndVisible()
+      self.window = window
+      // Ensure WatchManager is initialized
+      _ = WatchManager.shared
+      return true
   }
   
   
