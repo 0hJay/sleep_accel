@@ -23,6 +23,11 @@ class SleepInterfaceController: WKInterfaceController, HKWorkoutSessionDelegate,
   let defaults = UserDefaults.standard
   var accelerometerOutput = NSMutableArray()
   var accelerometerOutputPost = NSMutableArray()
+
+  var heartRateData: [Double] = []  
+  var respiratoryRateData: [Double] = []
+  var hrvData: [Double] = []
+  var circadianTime: Double = 0.0
   
   var watchSession: WCSession? {
     didSet {
@@ -73,6 +78,16 @@ class SleepInterfaceController: WKInterfaceController, HKWorkoutSessionDelegate,
   
   func startAccumulatingData(startDate: Date) {
     startMotionCapture();
+    startQuery(quantityTypeIdentifier: .heartRate)
+    fetchRespiratoryRate()
+    fetchLastSleepTime()
+
+    // Use existing timer to collect respiratory rate, HRV, and check for REM
+    timer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { _ in
+        self.fetchRespiratoryRate()
+        self.calculateHRV()
+        self.checkForREM()
+    }
   }
   
   func startQuery(quantityTypeIdentifier: HKQuantityTypeIdentifier) {
@@ -88,11 +103,61 @@ class SleepInterfaceController: WKInterfaceController, HKWorkoutSessionDelegate,
                                       anchor: nil,
                                       limit: HKObjectQueryNoLimit,
                                       resultsHandler: updateHandler)
-    query.updateHandler = updateHandler
+        guard let samples = samples as? [HKQuantitySample] else { return }
+        for sample in samples {
+            if quantityTypeIdentifier == .heartRate {
+                let heartRate = sample.quantity.doubleValue(for: HKUnit(from: "count/min"))
+                self.heartRateData.append(heartRate)
+            }
+          
+            query.updateHandler = updateHandler
+        }
     healthStore.execute(query)
     activeDataQueries.append(query)
   }
   
+  func fetchRespiratoryRate() {
+    guard let respiratoryType = HKObjectType.quantityType(forIdentifier: .respiratoryRate) else { return }
+    let query = HKSampleQuery(sampleType: respiratoryType, predicate: nil, limit: 1, sortDescriptors: nil) { query, samples, error in
+        guard let sample = samples?.first as? HKQuantitySample else { return }
+        let rate = sample.quantity.doubleValue(for: HKUnit(from: "count/min"))
+        self.respiratoryRateData.append(rate)
+    }
+    healthStore.execute(query)
+}
+
+func calculateHRV() {
+    guard heartRateData.count >= 2 else { return }
+    let intervals = heartRateData.windows(ofCount: 2).map { 60.0 / $0.first! - 60.0 / $0.last! }
+    let hrv = intervals.reduce(0, +) / Double(intervals.count) * 1000  // Simplified HRV in ms
+    self.hrvData.append(hrv)
+}
+
+func fetchLastSleepTime() {
+    guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return }
+    let query = HKSampleQuery(sampleType: sleepType, predicate: nil, limit: 1, sortDescriptors: nil) { query, samples, error in
+        guard let sample = samples?.first as? HKCategorySample else { return }
+        let lastSleepEnd = sample.endDate
+        self.circadianTime = Date().timeIntervalSince(lastSleepEnd)
+    }
+    healthStore.execute(query)
+}
+
+func detectREM() -> Bool {
+    guard !accelerometerOutput.isEmpty, !heartRateData.isEmpty, !hrvData.isEmpty else { return false }
+    let recentMovement = (accelerometerOutput.suffix(10) as NSArray).value(forKeyPath: "@avg.self") as? Double ?? 0.0
+    let recentHeartRate = heartRateData.suffix(10).reduce(0, +) / 10
+    let recentHRV = hrvData.suffix(10).reduce(0, +) / 10
+    // Placeholder: Low movement, elevated heart rate, high HRV
+    return recentMovement < 0.1 && recentHeartRate > 60 && recentHRV > 30
+}
+
+func checkForREM() {
+    if detectREM() {
+        WKInterfaceDevice.current().play(.notification)  // Vibrate for lucid dreaming
+        print("REM detected - alert triggered")
+    }
+}
   
   func stopAccumulatingData() {
     for query in activeDataQueries {
