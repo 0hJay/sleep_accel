@@ -26,6 +26,13 @@ extension WatchManager: WCSessionDelegate {
   public func sessionDidDeactivate(_ session: WCSession) {
     print("Session deactivated")
   }
+
+  public func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
+    print("Received application context: ", applicationContext)
+    if let remDetected = applicationContext["remDetected"] as? Bool, remDetected {
+        NotificationCenter.default.post(name: NSNotification.Name(rawValue: "remDetected"), object: nil)
+    }
+}
   
   func session(_: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void){
     
