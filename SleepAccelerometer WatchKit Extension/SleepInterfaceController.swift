@@ -28,6 +28,8 @@ class SleepInterfaceController: WKInterfaceController, HKWorkoutSessionDelegate,
   var respiratoryRateData: [Double] = []
   var hrvData: [Double] = []
   var circadianTime: Double = 0.0
+
+  var remTimer: Timer?
   
   var watchSession: WCSession? {
     didSet {
@@ -86,6 +88,11 @@ class SleepInterfaceController: WKInterfaceController, HKWorkoutSessionDelegate,
     timer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { _ in
         self.fetchRespiratoryRate()
         self.calculateHRV()
+        self.checkForREM()
+    }
+
+     // Separate timer for REM checking
+    remTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
         self.checkForREM()
     }
   }
@@ -160,12 +167,14 @@ func checkForREM() {
 }
   
   func stopAccumulatingData() {
+     motionManager.stopAccelerometerUpdates()
     for query in activeDataQueries {
       healthStore.stop(query)
     }
     
     activeDataQueries.removeAll()
     stopTimer()
+    remTimer?.invalidate()
   }
   
   func pauseAccumulatingData() {
