@@ -42,19 +42,21 @@ class SleepInterfaceController: WKInterfaceController, HKWorkoutSessionDelegate,
   
   override func awake(withContext context: Any?) {
     super.awake(withContext: context)
-    watchSession = WCSession.default
-    
-    if let workoutConfiguration = context as? HKWorkoutConfiguration {
-      do {
-        workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: workoutConfiguration)
-        workoutSession?.delegate = self
-        workoutStartDate = Date()
-        workoutSession?.startActivity(with: Date())
-        
-      } catch {
-      }
+    if WCSession.isSupported() {
+        watchSession = WCSession.default
     }
-  }
+    let config = HKWorkoutConfiguration()
+    config.activityType = .other
+    do {
+        workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: config)
+        workoutSession?.delegate = self
+    } catch {
+        print("Error creating workout session")
+    }
+    requestHealthKitAuthorization()
+    workoutStartDate = Date()
+    startAccumulatingData(startDate: workoutStartDate!)
+}
   
   @IBAction func stopRecording() {
     workoutEndDate = Date()
@@ -122,6 +124,19 @@ class SleepInterfaceController: WKInterfaceController, HKWorkoutSessionDelegate,
     healthStore.execute(query)
     activeDataQueries.append(query)
   }
+
+  func requestHealthKitAuthorization() {
+    let typesToRead: Set = [
+        HKObjectType.quantityType(forIdentifier: .heartRate)!,
+        HKObjectType.quantityType(forIdentifier: .respiratoryRate)!,
+        HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+    ]
+    healthStore.requestAuthorization(toShare: nil, read: typesToRead) { success, error in
+        if !success {
+            print("HealthKit authorization failed: \(String(describing: error))")
+        }
+    }
+}
   
   func fetchRespiratoryRate() {
     guard let respiratoryType = HKObjectType.quantityType(forIdentifier: .respiratoryRate) else { return }
@@ -152,7 +167,8 @@ func fetchLastSleepTime() {
 
 func detectREM() -> Bool {
     guard !accelerometerOutput.isEmpty, !heartRateData.isEmpty, !hrvData.isEmpty else { return false }
-    let recentMovement = (accelerometerOutput.suffix(10) as NSArray).value(forKeyPath: "@avg.self") as? Double ?? 0.0
+    let recentMovementArray = accelerometerOutput.suffix(10) as? [Double] ?? []
+    let recentMovement = recentMovementArray.isEmpty ? 0.0 : recentMovementArray.reduce(0, +) / Double(recentMovementArray.count)
     let recentHeartRate = heartRateData.suffix(10).reduce(0, +) / 10
     let recentHRV = hrvData.suffix(10).reduce(0, +) / 10
     // Placeholder: Low movement, elevated heart rate, high HRV
@@ -167,15 +183,13 @@ func checkForREM() {
 }
   
   func stopAccumulatingData() {
-     motionManager.stopAccelerometerUpdates()
-    for query in activeDataQueries {
-      healthStore.stop(query)
-    }
-    
+    motionManager.stopAccelerometerUpdates()
+    activeDataQueries.forEach { healthStore.stop($0) }
     activeDataQueries.removeAll()
     stopTimer()
     remTimer?.invalidate()
-  }
+    logData()
+}
   
   func pauseAccumulatingData() {
     DispatchQueue.main.sync {
