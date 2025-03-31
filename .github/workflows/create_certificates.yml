@@ -1,0 +1,32 @@
+name: 3. Create Certificates
+
+on:
+  workflow_dispatch:
+
+jobs:
+  certificates:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '2.7'
+
+      - name: Install Fastlane
+        run: gem install fastlane
+
+      - name: Create Certificates
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
+          FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
+          FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}
+          TEAMID: ${{ secrets.TEAMID }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.GH_PAT }}
+        run: |
+          fastlane match appstore --app_identifier "com.0hJay.sleepaccel" --git_url "https://github.com/0hJay/Match-Secrets.git" --git_basic_authorization "${{ secrets.GH_PAT }}"
+          fastlane match appstore --app_identifier "com.0hJay.sleepaccel.watchkitapp" --git_url "https://github.com/0hJay/Match-Secrets.git" --git_basic_authorization "${{ secrets.GH_PAT }}"
+          fastlane match appstore --app_identifier "com.0hJay.sleepaccel.watchkitapp.watchkitextension" --git_url "https://github.com/0hJay/Match-Secrets.git" --git_basic_authorization "${{ secrets.GH_PAT }}"
