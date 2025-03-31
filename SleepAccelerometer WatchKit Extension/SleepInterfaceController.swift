@@ -179,6 +179,16 @@ func checkForREM() {
     if detectREM() {
         WKInterfaceDevice.current().play(.notification)  // Vibrate for lucid dreaming
         print("REM detected - alert triggered")
+        // Send message to iPhone to trigger red light flash
+        if let session = watchSession, session.isReachable {
+            do {
+                try session.updateApplicationContext(["remDetected": true])
+            } catch {
+                print("Error sending REM detection to iPhone: \(error)")
+            }
+        } else {
+            print("Watch session not reachable")
+        }
     }
 }
   

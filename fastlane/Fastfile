@@ -1,0 +1,27 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and upload to TestFlight"
+  lane :beta do
+    # Ensure the correct Xcode version
+    xcode_select "/Applications/Xcode.app"
+
+    # Build the app
+    gym(
+      scheme: "SleepAccelerometer",
+      workspace: "SleepAccelerometer.xcworkspace",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          "com.0hJay.sleepaccel" => "match AppStore com.0hJay.sleepaccel"
+        }
+      }
+    )
+
+    # Upload to TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      apple_id: ENV["APPLE_ID"]
+    )
+  end
+end

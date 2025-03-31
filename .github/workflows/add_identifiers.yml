@@ -1,0 +1,30 @@
+name: 2. Add Identifiers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  add-identifiers:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '2.7'
+
+      - name: Install Fastlane
+        run: gem install fastlane
+
+      - name: Add Identifiers
+        env:
+          FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
+          FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
+          FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}
+          TEAMID: ${{ secrets.TEAMID }}
+        run: |
+          fastlane run register_app_identifier identifier:"com.0hJay.sleepaccel" team_id:"${{ secrets.TEAMID }}"
+          fastlane run register_app_identifier identifier:"com.0hJay.sleepaccel.watchkitapp" team_id:"${{ secrets.TEAMID }}"
+          fastlane run register_app_identifier identifier:"com.0hJay.sleepaccel.watchkitapp.watchkitextension" team_id:"${{ secrets.TEAMID }}"
